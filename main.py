@@ -43,21 +43,61 @@ def main():
         )
 
         if response.function_calls:
+            messages.append(types.Content(
+                role="model",
+                parts=[types.Part(function_call=fc) for fc in response.function_calls]
+            ))
+            
+            function_responses = []
             for function_call_part in response.function_calls:
-                print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+                if args.verbose:
+                    print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+                
                 if function_call_part.name == "get_files_info":
                     # Extract args with defaults
                     working_dir = function_call_part.args.get('working_dir', '.')
                     dir_path = function_call_part.args.get('dir', '.')
                     result = get_files_info(working_dir, dir_path)
-                    print(result)
+                    
+                    if args.verbose:
+                        print(f"Function {function_call_part.name} result:\n{result}")
+                elif function_call_part.name == "get_file_content":
+                    # TODO: implement
+                    pass
+                    
+                else:
+                    raise ValueError(f"Unknown function call: {function_call_part.name}")
+                    
+                function_responses.append(
+                    types.Part(function_response=types.FunctionResponse(
+                        name=function_call_part.name,
+                        response={"result": result}
+                        ))
+                    )
+            
+            messages.append(types.Content(
+                role="user",
+                parts=function_responses
+            ))
+            
+            final_response = client.models.generate_content(
+                model=model_name,
+                contents=messages,
+                config=config,
+            )
+            
+            print(final_response.text)
         else:
             if args.verbose:
                 print(response)
             else:
                 print(response.text)
+                
     except Exception as e:
-        print(e)
+        print(f"Error: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
     finally:
         sys.exit(0)
 
