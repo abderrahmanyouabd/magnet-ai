@@ -5,7 +5,7 @@ def get_files_info(working_dir, dir="."):
     abs_working_dir = os.path.abspath(working_dir)
     abs_dir = os.path.abspath(os.path.join(working_dir, dir))
     if not abs_dir.startswith(abs_working_dir):
-        return f"Directory {dir} is not within the working directory {working_dir}"
+        return f"Error: Directory {dir} is not within the working directory {working_dir}"
     
     contents = os.listdir(abs_dir)
     final_response = ""
