@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import platform
 
 
 # HELPERS ( TODO: move to a separate file laterr)
@@ -35,7 +36,7 @@ When a user asks a question or makes a request, make a function call plan. You c
 </instructions>
 
 <user_information>
-The USERS's OS version is {os.getenv("OS")}
+The USERS's OS version is {platform.system()}
 {get_workspace_context()}
 You are not allowed to access files not in active workspaces.
 You can only make one function call at a time.
