@@ -1,6 +1,9 @@
 import unittest
 from unittest.mock import patch
 from functions.get_files_info import get_files_info
+from functions.get_file_content import get_file_content
+import os
+from config import MAX_CHARS
 
 class TestGetFilesInfo(unittest.TestCase):
     @patch('os.path.abspath')
@@ -26,7 +29,7 @@ class TestGetFilesInfo(unittest.TestCase):
         
         result = get_files_info('safe', '../unsafe')
         
-        self.assertEqual(result, "Directory ../unsafe is not within the working directory safe")
+        self.assertEqual(result, "Error: Directory ../unsafe is not within the working directory safe")
 
     @patch('os.path.abspath')
     @patch('os.listdir')
@@ -37,6 +40,44 @@ class TestGetFilesInfo(unittest.TestCase):
         result = get_files_info('work')
         
         self.assertEqual(result, "")
+
+class TestGetFileContent(unittest.TestCase):
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', create=True)
+    def test_get_file_content_small_file(self, mock_open, mock_abspath, mock_isfile):
+        # Setup: Create a small file (500 chars)
+        small_content = "A" * 500
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        mock_open.return_value.__enter__.return_value.read.return_value = small_content
+        
+        # Execute
+        result = get_file_content('/work', 'test.txt')
+        
+        # Verify: Should return full content without truncation message
+        self.assertEqual(result, small_content)
+        self.assertNotIn("truncated", result)
+        self.assertEqual(len(result), 500)
+
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', create=True)
+    def test_get_file_content_large_file_truncated(self, mock_open, mock_abspath, mock_isfile):
+        # Setup: Create a large file (15000 chars, larger than MAX_CHARS=10000)
+        large_content = "B" * MAX_CHARS  # Simulate that read(MAX_CHARS) returns exactly MAX_CHARS
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        mock_open.return_value.__enter__.return_value.read.return_value = large_content
+        
+        # Execute
+        result = get_file_content('/work', 'large.txt')
+        
+        # Verify: Should contain truncation message
+        self.assertIn("truncated", result)
+        self.assertGreater(len(result), MAX_CHARS)  # Should be larger due to truncation message
+        self.assertTrue(result.startswith("B" * 100))  # First part should be the content
+
 
 if __name__ == '__main__':
     unittest.main()
