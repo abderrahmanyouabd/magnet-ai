@@ -1,7 +1,8 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open, MagicMock
 from functions.get_files_info import get_files_info
 from functions.get_file_content import get_file_content
+from functions.write_file import write_file
 import os
 from config import MAX_CHARS
 
@@ -87,6 +88,153 @@ class TestGetFileContent(unittest.TestCase):
         result = get_file_content('/work', 'test.txt')
         
         self.assertEqual(result, "Error: File test.txt does not exist")
+
+class TestWriteFile(unittest.TestCase):
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('os.path.join')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_write_file_full_overwrite(self, mock_file, mock_join, mock_abspath, mock_isfile):
+        """Test full file overwrite (no line ranges)"""
+        mock_join.return_value = '/work/test.py'
+        mock_abspath.side_effect = lambda x: f"/abs{x}" if x.startswith('/') else f"/abs/{x}"
+        
+        result = write_file('/work', 'test.py', 'print("Hello")\n')
+        
+        # Verify file was opened in write mode
+        mock_file.assert_called_once_with('/abs/work/test.py', 'w', encoding='utf-8')
+        # Verify content was written
+        mock_file().write.assert_called_once_with('print("Hello")\n')
+        self.assertIn("Success", result)
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_write_file_line_splice_without_validation(self, mock_file, mock_abspath, mock_isfile):
+        """Test line-based replacement without target validation"""
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        
+        # Mock file content: 5 lines
+        original_content = "line1\nline2\nline3\nline4\nline5\n"
+        mock_file.return_value.readlines.return_value = original_content.splitlines(keepends=True)
+        
+        # Replace lines 2-3 with new content
+        result = write_file('/work', 'test.py', 'new_line\n', start_line=2, end_line=3)
+        
+        # Verify success
+        self.assertIn("Success", result)
+        self.assertIn("[2, 3]", result)
+        
+        # Verify the spliced content
+        handle = mock_file()
+        written_lines = []
+        for call in handle.writelines.call_args_list:
+            written_lines.extend(call[0][0])
+        
+        expected = ['line1\n', 'new_line\n', 'line4\n', 'line5\n']
+        self.assertEqual(written_lines, expected)
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_write_file_line_splice_with_validation_success(self, mock_file, mock_abspath, mock_isfile):
+        """Test line-based replacement with target validation (matching content)"""
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        
+        # Mock file content
+        original_content = "line1\nold_code()\nline3\n"
+        mock_file.return_value.readlines.return_value = original_content.splitlines(keepends=True)
+        
+        # Replace line 2 with validation
+        result = write_file(
+            '/work', 'test.py', 
+            'new_code()\n',
+            target_content='old_code()\n',
+            start_line=2, 
+            end_line=2
+        )
+        
+        # Verify success
+        self.assertIn("Success", result)
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_write_file_line_splice_with_validation_failure(self, mock_file, mock_abspath, mock_isfile):
+        """Test line-based replacement with target validation (mismatched content)"""
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        
+        # Mock file content
+        original_content = "line1\nactual_code()\nline3\n"
+        mock_file.return_value.readlines.return_value = original_content.splitlines(keepends=True)
+        
+        # Try to replace with wrong target content
+        result = write_file(
+            '/work', 'test.py', 
+            'new_code()\n',
+            target_content='expected_code()\n',  # This doesn't match actual content
+            start_line=2, 
+            end_line=2
+        )
+        
+        # Verify error
+        self.assertIn("Error: Target content mismatch", result)
+    
+    @patch('os.path.abspath')
+    def test_write_file_path_traversal_attack(self, mock_abspath):
+        """Test security: prevent path traversal attacks"""
+        mock_abspath.side_effect = lambda x: "/safe" if x == "/safe" else "/unsafe"
+        
+        result = write_file('/safe', '../unsafe/file.txt', 'malicious')
+        
+        self.assertIn("Error: File ../unsafe/file.txt is not within the working directory", result)
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    def test_write_file_file_not_found(self, mock_abspath, mock_isfile):
+        """Test error when trying to splice a non-existent file"""
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = False
+        
+        result = write_file('/work', 'missing.py', 'content', start_line=1, end_line=1)
+        
+        self.assertIn("Error: File missing.py does not exist", result)
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_write_file_invalid_line_range(self, mock_file, mock_abspath, mock_isfile):
+        """Test error for invalid line ranges"""
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        
+        # Test 1: start_line < 1
+        result = write_file('/work', 'test.py', 'content', start_line=0, end_line=5)
+        self.assertIn("Error: Invalid line range", result)
+        
+        # Test 2: end_line < start_line
+        result = write_file('/work', 'test.py', 'content', start_line=5, end_line=2)
+        self.assertIn("Error: Invalid line range", result)
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_write_file_line_range_exceeds_file(self, mock_file, mock_abspath, mock_isfile):
+        """Test error when line range exceeds file length"""
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = True
+        
+        # Mock file with only 3 lines
+        original_content = "line1\nline2\nline3\n"
+        mock_file.return_value.readlines.return_value = original_content.splitlines(keepends=True)
+        
+        # Try to replace lines beyond file length
+        result = write_file('/work', 'test.py', 'content', start_line=1, end_line=10)
+        
+        self.assertIn("Error: end_line 10 exceeds file length 3", result)
 
 if __name__ == '__main__':
     unittest.main()
