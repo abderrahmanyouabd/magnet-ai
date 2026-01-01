@@ -65,7 +65,7 @@ class TestGetFileContent(unittest.TestCase):
     @patch('builtins.open', create=True)
     def test_get_file_content_large_file_truncated(self, mock_open, mock_abspath, mock_isfile):
         # Setup: Create a large file (15000 chars, larger than MAX_CHARS=10000)
-        large_content = "B" * MAX_CHARS  # Simulate that read(MAX_CHARS) returns exactly MAX_CHARS
+        large_content = "B" * (MAX_CHARS + 5000)  # Simulate that read(MAX_CHARS) returns exactly MAX_CHARS
         mock_abspath.side_effect = lambda x: f"/abs/{x}"
         mock_isfile.return_value = True
         mock_open.return_value.__enter__.return_value.read.return_value = large_content
@@ -77,7 +77,16 @@ class TestGetFileContent(unittest.TestCase):
         self.assertIn("truncated", result)
         self.assertGreater(len(result), MAX_CHARS)  # Should be larger due to truncation message
         self.assertTrue(result.startswith("B" * 100))  # First part should be the content
-
+    
+    @patch('os.path.isfile')
+    @patch('os.path.abspath')
+    def test_get_file_content_file_not_found(self, mock_abspath, mock_isfile):
+        mock_abspath.side_effect = lambda x: f"/abs/{x}"
+        mock_isfile.return_value = False
+        
+        result = get_file_content('/work', 'test.txt')
+        
+        self.assertEqual(result, "Error: File test.txt does not exist")
 
 if __name__ == '__main__':
     unittest.main()
