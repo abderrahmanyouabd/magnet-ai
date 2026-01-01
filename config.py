@@ -2,6 +2,25 @@ import os
 from pathlib import Path
 
 
+# HELPERS ( TODO: move to a separate file laterr)
+
+def get_workspace_context():
+    """
+    Scans the current environment to build the context string.
+    """
+    current_uri = os.getcwd()
+    corpus_name = Path(current_uri).as_posix()
+    context_block = (
+        f"The user has 1 active workspace, each defined by a URI and a CorpusName.\n"
+        f"The mapping is shown as follows in the format [URI] -> [CorpusName]:\n"
+        f"{current_uri} -> {corpus_name}\n"
+    )
+    return context_block
+
+
+# PROMPTS & CONSTANTS
+
+
 MAX_CHARS = 10000
 
 SYSTEM_PROMPT = f"""
@@ -23,21 +42,3 @@ You can only make one function call at a time.
 All paths you provide should be relative to the working directory.
 </user_information>
 """
-
-
-
-
-# HELPERS ( TODO: move to a separate file laterr)
-
-def get_workspace_context():
-    """
-    Scans the current environment to build the context string.
-    """
-    current_uri = os.getcwd()
-    corpus_name = Path(current_uri).as_posix()
-    context_block = (
-        f"The user has 1 active workspace, each defined by a URI and a CorpusName.\n"
-        f"The mapping is shown as follows in the format [URI] -> [CorpusName]:\n"
-        f"{current_uri} -> {corpus_name}\n"
-    )
-    return context_block
