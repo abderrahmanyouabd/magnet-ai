@@ -8,3 +8,4 @@ venv/
 build/
 dist/
 *.egg-info/
+/example_project_calculator
