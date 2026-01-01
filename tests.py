@@ -236,5 +236,13 @@ class TestWriteFile(unittest.TestCase):
         
         self.assertIn("Error: end_line 10 exceeds file length 3", result)
 
+class TestRunPythonFile(unittest.TestCase):
+    # TODO: Implement tests for run_python_file
+    pass
+
+class TestRunCommand(unittest.TestCase):
+    # TODO: Implement tests for run_command
+    pass
+
 if __name__ == '__main__':
     unittest.main()
