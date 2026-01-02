@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 
-def run_python_file(work_dir, file_path, timeout=30, interactive=False):
+def run_python_file(work_dir, file_path, timeout=30, interactive=False, cli_args=None):
     """
     Run a Python file in its proper working directory using subprocess.
     
@@ -12,9 +12,17 @@ def run_python_file(work_dir, file_path, timeout=30, interactive=False):
         file_path (str): Relative path to the Python file
         timeout (int): Maximum execution time in seconds (default: 30)
         interactive (bool): If True, allows user interaction (input prompts visible)
+        cli_args (list): Optional list of command-line arguments to pass to the script
     
     Returns:
         str: Output from the script or error message
+    
+    Examples:
+        # Run without arguments
+        run_python_file('.', 'script.py')
+        
+        # Run with arguments
+        run_python_file('.', 'script.py', cli_args=['--input', 'data.txt', '--verbose'])
     """
     abs_working_dir = os.path.abspath(work_dir)
     abs_file_path = os.path.abspath(os.path.join(work_dir, file_path))
@@ -28,11 +36,19 @@ def run_python_file(work_dir, file_path, timeout=30, interactive=False):
     if not abs_file_path.endswith(".py"):
         return f"Error: File {file_path} is not a Python file"
     
+    # Build command: [python, script.py, arg1, arg2, ...]
+    command = [sys.executable, abs_file_path]
+    if cli_args:
+        if isinstance(cli_args, list):
+            command.extend(cli_args)
+        else:
+            return f"Error: cli_args must be a list, got {type(cli_args)}"
+    
     try:
         if interactive:
             # Interactive mode: Connect subprocess to terminal (shows prompts)
             result = subprocess.run(
-                [sys.executable, abs_file_path],
+                command,
                 cwd=abs_working_dir,
                 timeout=timeout
             )
@@ -44,7 +60,7 @@ def run_python_file(work_dir, file_path, timeout=30, interactive=False):
         else:
             # Non-interactive mode: Capture output
             result = subprocess.run(
-                [sys.executable, abs_file_path],
+                command,
                 cwd=abs_working_dir,
                 capture_output=True,
                 text=True,
